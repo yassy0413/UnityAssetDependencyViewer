@@ -31,7 +31,7 @@ Key down on uses/used asset item with control key, you can select asset in direc
 
 UPM
 --- 
-**https://github.com/yassy0413/UnityAssetLauncher.git**
+**https://github.com/yassy0413/UnityAssetDependencyViewer.git**
 
 You can install from Package Manager.
 

@@ -3,7 +3,7 @@
     "displayName": "AssetDependencyViewer",
     "version": "1.0.0",
     "unity": "2020.1",
-    "description": "for UnityEditor",
+    "description": "A viewer for checking asset dependencies, based on DependencyViewer from com.unity.search.extensions. Designed to work with unity 2023 or later.",
     "license": "GPL-3.0",
     "keywords": [
         ""
