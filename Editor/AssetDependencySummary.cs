@@ -13,7 +13,9 @@ namespace AssetDependencyViewer
         public string[] PathList;
         public Dictionary<string, AssetInfo> AssetInfoMap;
         public string LastUpdatedTime;
-        private AssetInfo[] AssetInfoList;
+        private AssetInfo[] m_AssetInfoList;
+
+        private const string DisplayProgressTitle = "Updating asset dependencies.";
 
         public sealed class AssetInfo
         {
@@ -67,8 +69,8 @@ namespace AssetDependencyViewer
             using var ms = new MemoryStream(1024 * 1024 * 16);
             using var bs = new BinaryWriter(ms);
 
-            bs.Write(AssetInfoList.Length);
-            foreach (var assetInfo in AssetInfoList)
+            bs.Write(m_AssetInfoList.Length);
+            foreach (var assetInfo in m_AssetInfoList)
             {
                 assetInfo.WriteTo(bs);
             }
@@ -98,11 +100,11 @@ namespace AssetDependencyViewer
             using var ms = new MemoryStream(bytes);
             using var bs = new BinaryReader(ms);
 
-            AssetInfoList = new AssetInfo[bs.ReadInt32()];
-            for (var index = 0; index < AssetInfoList.Length; ++index)
+            m_AssetInfoList = new AssetInfo[bs.ReadInt32()];
+            for (var index = 0; index < m_AssetInfoList.Length; ++index)
             {
-                AssetInfoList[index] = new AssetInfo();
-                AssetInfoList[index].ReadFrom(bs);
+                m_AssetInfoList[index] = new AssetInfo();
+                m_AssetInfoList[index].ReadFrom(bs);
             }
 
             PathList = new string[bs.ReadInt32()];
@@ -139,69 +141,85 @@ namespace AssetDependencyViewer
             {
                 if (!pathIndexMap.TryGetValue(path, out var index))
                 {
-                    index = pathList.Count;
+                    index = pathList.Count();
                     pathList.Add(path);
                     pathIndexMap.Add(path, index);
                 }
                 return index;
             }
 
-            var assetInfoMap = pathIndexMap.ToArray()
+            var assetInfoList = Enumerable.Range(0, pathListCount)
                 .Select(x =>
                 {
+                    var path = pathList[x];
+
                     EditorUtility.DisplayProgressBar(
-                        "Updating asset dependencies.", x.Key, (x.Value + 1f) / pathListCount);
+                        DisplayProgressTitle, path, (x + 1f) / pathListCount);
 
                     return new AssetInfo
                     {
-                        PathIndex = x.Value,
-                        UsesIndex = AssetDatabase.GetDependencies(x.Key, false)
+                        PathIndex = x,
+                        UsesIndex = AssetDatabase.GetDependencies(path, false)
                             .Where(y => withFolder || !AssetDatabase.IsValidFolder(y))
                             .Select(PathToIndex)
                             .ToArray()
                     };
                 })
-                .ToDictionary(x => pathList[x.PathIndex]);
+                .ToList();
 
-            EditorUtility.DisplayProgressBar("Updating asset dependencies.", "", 1f);
-
-            AssetInfoList = pathIndexMap
-                .Select(x =>
-                {
-                    if (assetInfoMap.TryGetValue(x.Key, out var assetInfo))
-                    {
-                        return assetInfo;
-                    }
-                    // Create dummy.
-                    return new AssetInfo
-                    {
-                        PathIndex = x.Value,
-                        UsesIndex = Array.Empty<int>()
-                    };
-                })
-                .ToArray();
+            EditorUtility.DisplayProgressBar(DisplayProgressTitle, "", 1f);
 
             PathList = pathList.ToArray();
+            pathListCount = pathList.Count();
 
-            Parallel.ForEach(AssetInfoList, info =>
+            for (var index = assetInfoList.Count(); index < pathListCount; ++index)
             {
-                info.UsedByIndex = AssetInfoList
-                    .Where(x => x.UsesIndex.Contains(info.PathIndex))
-                    .Select(x => x.PathIndex)
+                assetInfoList.Add(new AssetInfo
+                {
+                    PathIndex = index,
+                    UsesIndex = Array.Empty<int>()
+                });
+            }
+
+            m_AssetInfoList = assetInfoList.ToArray();
+
+            EditorUtility.DisplayProgressBar(DisplayProgressTitle, "Find used index", 1f);
+
+            var usedIndexList = new List<int>[pathListCount];
+
+            for (var index = 0; index < pathListCount; ++index)
+            {
+                usedIndexList[index] = new List<int>();
+            }
+
+            foreach (var assetInfo in m_AssetInfoList)
+            {
+                foreach (var index in assetInfo.UsesIndex)
+                {
+                    usedIndexList[index].Add(assetInfo.PathIndex);
+                }
+            }
+
+            Parallel.ForEach(m_AssetInfoList, x =>
+            {
+                x.UsedByIndex = usedIndexList[x.PathIndex]
+                    .OrderBy(x => PathList[x])
                     .ToArray();
             });
+
+            EditorUtility.DisplayProgressBar(DisplayProgressTitle, "Setup", 1f);
 
             Setup();
 
             EditorUtility.ClearProgressBar();
-            Debug.Log($"AssetDependencyViewer updated. {sw.Elapsed.TotalSeconds}sec");
+            Debug.Log($"AssetDependencyViewer updated. {sw.Elapsed.TotalSeconds}sec {pathListCount}assets.");
         }
 
         private void Setup()
         {
-            AssetInfoMap = AssetInfoList.ToDictionary(x => PathList[x.PathIndex]);
+            AssetInfoMap = m_AssetInfoList.ToDictionary(x => PathList[x.PathIndex]);
 
-            Parallel.ForEach(AssetInfoList, x =>
+            Parallel.ForEach(m_AssetInfoList, x =>
             {
                 x.Directory = Path.GetDirectoryName(PathList[x.PathIndex]);
                 x.FileName = Path.GetFileName(PathList[x.PathIndex]);
@@ -214,7 +232,6 @@ namespace AssetDependencyViewer
         {
             return pathList
                 .Select(x => AssetInfoMap[PathList[x]])
-                .OrderBy(x => PathList[x.PathIndex])
                 .ToArray();
         }
     }

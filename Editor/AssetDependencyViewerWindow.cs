@@ -8,7 +8,7 @@ namespace AssetDependencyViewer
 {
     public sealed class AssetDependencyViewerWindow : EditorWindow
     {
-        private string SerializePath => Application.persistentDataPath + "/dep.json";
+        private string SerializePath => Application.persistentDataPath + "/dep.dat";
 
         private AssetInfo m_SelectionAssetInfo;
         private readonly List<AssetInfo> m_SelectionAssetInfoHistory = new();
