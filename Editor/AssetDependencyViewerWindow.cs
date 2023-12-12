@@ -1,8 +1,11 @@
+using System;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using System.Collections.Generic;
+using System.Diagnostics;
 using static AssetDependencyViewer.AssetDependencySummary;
+using Object = UnityEngine.Object;
 
 namespace AssetDependencyViewer
 {
@@ -18,6 +21,8 @@ namespace AssetDependencyViewer
         private bool m_UpdateWithFolder = true;
         private Vector2 m_ScrollPositionUses;
         private Vector2 m_ScrollPositionUsed;
+        private AssetInfo m_LastClickedAssetInfo;
+        private Stopwatch m_ClickedTimer = new();
 
         private IMGUIContainer m_UsesPane;
         private IMGUIContainer m_UsedPane;
@@ -49,7 +54,18 @@ namespace AssetDependencyViewer
             Selection.selectionChanged -= OnSelectionChanged;
             EditorApplication.projectWindowItemOnGUI -= ProjectWindowItemOnGUI;
         }
-        
+
+        private void Update()
+        {
+            if (m_LastClickedAssetInfo != null)
+            {
+                if (m_ClickedTimer.Elapsed.TotalSeconds > 0.4f)
+                {
+                    m_LastClickedAssetInfo = null;
+                }
+            }
+        }
+
         private void OnSelectionChanged()
         {
             if (Selection.assetGUIDs.Length == 0 || m_Summary?.AssetInfoMap == null)
@@ -257,13 +273,18 @@ namespace AssetDependencyViewer
 
             if (IsMouseDownOnRect(horizontalScope.rect))
             {
-                PingPath(m_Summary.PathList[assetInfo.PathIndex]);
-
-                if (Event.current.control)
+                if (m_LastClickedAssetInfo == null)
+                {
+                    PingPath(m_Summary.PathList[assetInfo.PathIndex]);
+                    m_LastClickedAssetInfo = assetInfo;
+                    m_ClickedTimer.Restart();
+                }
+                else if (m_LastClickedAssetInfo.PathIndex == assetInfo.PathIndex)
                 {
                     SelectAssetInfo(assetInfo, updateHistory: true);
+                    m_LastClickedAssetInfo = null;
                 }
-
+                
                 Event.current.Use();
             }
 

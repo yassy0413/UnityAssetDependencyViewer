@@ -23,10 +23,10 @@ The ProjectView displays the Used Count for each asset.
 ![](Editor/StoreDocument/ProjectView.png)
 
 
-Modifier key
+key
 --- 
 
-Key down on uses/used asset item with control key, you can select asset in direct. 
+Double click on uses/used asset item, you can select asset in direct. 
 
 
 UPM
